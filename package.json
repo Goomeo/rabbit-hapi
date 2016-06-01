@@ -1,0 +1,32 @@
+{
+  "name": "rabbit-hapi",
+  "version": "0.1.0",
+  "description": "HAPI plugin to wrap basic RabbitMQ operations",
+  "main": "index.js",
+  "dependencies": {
+    "amqplib": "0.4.1",
+    "hoek": "^4.0.0",
+    "node-uuid": "^1.4.7",
+    "underscore": "^1.8.3",
+    "when": "^3.7.7"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Goomeo/rabbit-hapi.git"
+  },
+  "keywords": [
+    "hapi",
+    "rabbitMQ",
+    "AMQP"
+  ],
+  "author": "Goomeo",
+  "license": "Apache-2.0",
+  "bugs": {
+    "url": "https://github.com/Goomeo/rabbit-hapi/issues"
+  },
+  "homepage": "https://github.com/Goomeo/rabbit-hapi#readme"
+}
