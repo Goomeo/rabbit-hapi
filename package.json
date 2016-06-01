@@ -24,6 +24,10 @@
     "AMQP"
   ],
   "author": "Goomeo",
+  "contributors": [
+      "Claire Bérard <claire.berard@outlook.com>",
+      "Benjamin Besse <benjamin.besse02@gmail.com>"
+  ],
   "license": "Apache-2.0",
   "bugs": {
     "url": "https://github.com/Goomeo/rabbit-hapi/issues"
