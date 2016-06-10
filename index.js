@@ -202,14 +202,14 @@ const rabbitPlugin = {
     /**
      * Publish a message through a fanout exchange
      *
-     * @param       {object}        params                  Function params
-     * @param       {string|object} params.message          Message to send
-     * @param       {*}             params.message.content  Message content
-     * @param       {object}        params.message.options  Message options (same as amqp)
-     * @param       {string}        params.exchange         Exchange name
-     * @param       {object}        params.options          Exchange settings (same as amqp)
-     * @param       {string}        [params.routingKey]     Routing key to use
-     * @param       {string}        [params.queue]          Queue to send in if no routing key is specified (default to queue '')
+     * @param       {object}        params                      Function params
+     * @param       {string|object} params.message              Message to send
+     * @param       {*}             [params.message.content]    Message content
+     * @param       {object}        [params.message.options]    Message options (same as amqp)
+     * @param       {string}        params.exchange             Exchange name
+     * @param       {object}        [params.options]            Exchange settings (same as amqp)
+     * @param       {string}        [params.routingKey]         Routing key to use
+     * @param       {string}        [params.queue]              Queue to send in if no routing key is specified (default to queue '')
      * @returns     {*}
      */
     publish : (params) => {
@@ -233,9 +233,9 @@ const rabbitPlugin = {
      *
      * @param       {object}        params                  Function params
      * @param       {string}        params.exchange         Exchange name
-     * @param       {object}        params.options          Exchange/queue settings (same as amqp)
+     * @param       {object}        [params.options]        Exchange/queue settings (same as amqp)
      * @param       {string}        [params.queue]          Queue to send in if no routing key is specified (default to queue '')
-     * @param       {function}      params.waitingFunc      Function to call on connection to the channel
+     * @param       {function}      [params.waitingFunc]    Function to call on connection to the channel
      * @param       {function}      params.receiveFunc      Function to call on message consumption (take message object in parameter)
      * @returns {*}
      */
@@ -266,14 +266,14 @@ const rabbitPlugin = {
     /**
      * Send a message to an exchange or a queue
      *
-     * @param       {object}        params                  Function params
-     * @param       {string|object} params.message          Message to send
-     * @param       {*}             params.message.content  Message content
-     * @param       {object}        params.message.options  Message options (same as amqp)
-     * @param       {string}        params.exchange         Exchange name
-     * @param       {string}        params.type             Exchange type (fanout, direct, topic)
-     * @param       {object}        params.options          Exchange/queue settings (same as amqp)
-     * @param       {string}        [params.queue]          Queue to send in if no routing key is specified (default to queue '')
+     * @param       {object}        params                      Function params
+     * @param       {string|object} params.message              Message to send
+     * @param       {*}             [params.message.content]    Message content
+     * @param       {object}        [params.message.options]    Message options (same as amqp)
+     * @param       {string}        [params.exchange]           Exchange name
+     * @param       {string}        [params.type]               Exchange type (fanout, direct, topic)
+     * @param       {object}        [params.options]            Exchange/queue settings (same as amqp)
+     * @param       {string}        [params.queue]              Queue to send in if no routing key is specified (default to queue '')
      * @returns     {*}
      */
     send : (params) => {
@@ -305,12 +305,12 @@ const rabbitPlugin = {
      * Consume messages on an exchange or a queue. Automatic reconnection to a new channel on connection error/lost.
      *
      * @param       {object}        params                  Function params
-     * @param       {string}        params.exchange         Exchange name
-     * @param       {string}        params.type             Exchange type (fanout, direct, topic)
-     * @param       {object}        params.options          Exchange/queue settings (same as amqp)
-     * @param       {number}        params.prefetch         Specify prefetch on the channel
+     * @param       {string}        [params.exchange]       Exchange name
+     * @param       {string}        [params.type]           Exchange type (fanout, direct, topic)
+     * @param       {object}        [params.options]        Exchange/queue settings (same as amqp)
+     * @param       {number}        [params.prefetch]       Specify prefetch on the channel
      * @param       {string}        [params.queue]          Queue to send in if no routing key is specified (default to queue '')
-     * @param       {function}      params.waitingFunc      Function to call on connection to the channel
+     * @param       {function}      [params.waitingFunc]    Function to call on connection to the channel
      * @param       {function}      params.receiveFunc      Function to call on message consumption (take message object in parameter)
      * @returns     {*}
      */
@@ -361,7 +361,7 @@ const rabbitPlugin = {
      * @param       {object}            params                  Function params
      * @param       {string}            params.exchange         Exchange name
      * @param       {string}            params.type             Exchange type (fanout, direct, topic)
-     * @param       {object}            params.options          Exchange/queue settings (same as amqp)
+     * @param       {object}            [params.options]        Exchange/queue settings (same as amqp)
      * @param       {string}            params.queue            Queue to bind
      * param        {string|string[]}   params.routingKeys      Routing keys to bind to. USe array to specified multiple keys.
      * @returns     {*}
@@ -390,13 +390,13 @@ const rabbitPlugin = {
     /**
      * Send a RPC request : send a message on a queue and wait for a response from consumer
      *
-     * @param       {object}            params                  Function params
-     * @param       {string|object}     params.message          Message to send
-     * @param       {*}                 params.message.content  Message content
-     * @param       {object}            params.message.options  Message options (same as amqp)
-     * @param       {string}            params.queue            Queue to send
-     * @param       {object}            params.options          Queue settings (same as amqp)
-     * @param       {function}          params.receiveFunc      Function to call server answer
+     * @param       {object}            params                      Function params
+     * @param       {string|object}     params.message              Message to send
+     * @param       {*}                 [params.message.content]    Message content
+     * @param       {object}            [params.message.options]    Message options (same as amqp)
+     * @param       {string}            params.queue                Queue to send
+     * @param       {object}            [params.options]            Queue settings (same as amqp)
+     * @param       {function}          params.receiveFunc          Function to call server answer
      * @returns     {*}
      */
     sendRPC : (params) => {
@@ -466,10 +466,10 @@ const rabbitPlugin = {
      * Answer to a RPC request
      *
      * @param       {object}            params                  Function params
-     * @param       {number}            params.prefetch         Specify prefetch on the channel
+     * @param       {number}            [params.prefetch]       Specify prefetch on the channel
      * @param       {string}            params.queue            Queue to send
-     * @param       {object}            params.options          Queue settings (same as amqp)
-     * @param       {function}          params.waitingFunc      Function to call on connection to the channel
+     * @param       {object}            [params.options]        Queue settings (same as amqp)
+     * @param       {function}          [params.waitingFunc]    Function to call on connection to the channel
      * @param       {function}          params.receiveFunc      Function to call when receiving a message
      * @return      {*}
      */
