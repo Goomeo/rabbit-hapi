@@ -38,6 +38,7 @@ const rabbitPlugin = {
     _settings   : {
         hostname    : 'localhost',
         port        : '5672',
+        vhost       : '/',
         credentials : '',
         heartbeat   : 60,
         maxRetry    : 5
@@ -89,7 +90,7 @@ const rabbitPlugin = {
                 _.delay(() => { return rabbitPlugin._connect(); }, 1000);
             };
 
-        rabbitURL = 'amqp://' + (_.isEmpty(options.credentials) ? '' : options.credentials + '@') + options.hostname + ':' + options.port;
+        rabbitURL = 'amqp://' + (_.isEmpty(options.credentials) ? '' : options.credentials + '@') + options.hostname + ':' + options.port + options.vhost;
 
         if (!_.isUndefined(amqpConnect)) {
             return amqpConnect;
