@@ -288,10 +288,26 @@ const rabbitPlugin = {
 
             if (!_.isEmpty(settings.exchange)) {
                 // messages using routing key and exchange
-                return channel.assertExchange(settings.exchange, settings.type, settings.options).then(() => {
-                    channel.publish(settings.exchange, settings.routingKey || settings.queue, new Buffer(message.content), message.options);
-                    return channel.close();
-                });
+                return channel.assertExchange(settings.exchange, settings.type, settings.options)
+                    .then(() => {
+                        // queue and routing key specified together => rebind queue to ensure bind is ok
+                        if (!_.isEmpty(settings.routingKey) && !_.isEmpty(settings.queue)) {
+                            return channel.assertQueue(settings.queue, settings.options);
+                        }
+
+                        return;
+                    })
+                    .then((queueOk) => {
+                        if (!queueOk) {
+                            return;
+                        }
+
+                        return rabbitPlugin._bind(channel, queueOk.queue, settings);
+                    })
+                    .then(() => {
+                        channel.publish(settings.exchange, settings.routingKey || settings.queue, new Buffer(message.content), message.options);
+                        return channel.close();
+                    });
             }
 
             // message direct to a queue

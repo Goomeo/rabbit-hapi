@@ -130,7 +130,7 @@ rabbitHapi.subscribe({
 
 ### send
 
-Send a message to an exchange or a queue.
+Send a message to an exchange or a queue. If no queue specified, use the amqp default queue name. If both `routing key` and `queue` are specified, bind the exchange to the queue using the routing key.
 
 #### Parameters
 
@@ -143,7 +143,7 @@ Send a message to an exchange or a queue.
 | type              | String        | Exchange type                                                             |
 | options           | Object        | Exchange options                                                          |
 | routingKey        | String        | (optional) Routing key to use                                             |
-| queue             | String        | (optional) Queue name (if no routing key specified)                       |
+| queue             | String        | (optional) Queue name                                                     |
 
 #### Usage
 
