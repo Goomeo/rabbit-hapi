@@ -274,7 +274,8 @@ const rabbitPlugin = {
      * @param       {string}        [params.exchange]           Exchange name
      * @param       {string}        [params.type]               Exchange type (fanout, direct, topic)
      * @param       {object}        [params.options]            Exchange/queue settings (same as amqp)
-     * @param       {string}        [params.queue]              Queue to send in if no routing key is specified (default to queue '')
+     * @param       {string}        [params.queue]              Queue to send in if no routing key is specified
+     * @param       {boolean}       [params.generatedQueue]     True to use AMQP auto-generated queue
      * @returns     {*}
      */
     send : (params) => {
@@ -290,18 +291,21 @@ const rabbitPlugin = {
                 // messages using routing key and exchange
                 return channel.assertExchange(settings.exchange, settings.type, settings.options)
                     .then(() => {
-                        // queue and routing key specified together => rebind queue to ensure bind is ok
-                        if (!_.isEmpty(settings.routingKey) && !_.isEmpty(settings.queue)) {
-                            return channel.assertQueue(settings.queue, settings.options);
+                        // if queue is not passed and not anonymous, just use the routing feature from the exchange
+                        if (!settings.generatedQueue && _.isEmpty(settings.queue) && !_.isEmpty(settings.routingKey)) {
+                            return;
                         }
 
-                        return;
+                        // else, assert the queue exists or create it
+                        settings.queue = settings.generatedQueue ? '' : settings.queue;
+                        return channel.assertQueue(settings.queue, settings.options);
                     })
                     .then((queueOk) => {
                         if (!queueOk) {
                             return;
                         }
 
+                        // (re)do binding in case of queue creation
                         return rabbitPlugin._bind(channel, queueOk.queue, settings);
                     })
                     .then(() => {
