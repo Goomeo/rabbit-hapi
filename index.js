@@ -36,12 +36,14 @@ const rabbitPlugin = {
     _server     : {},
 
     _settings   : {
-        hostname    : 'localhost',
-        port        : '5672',
-        vhost       : '/',
-        credentials : '',
-        heartbeat   : 60,
-        maxRetry    : 5
+        hostname        : 'localhost',
+        port            : '5672',
+        vhost           : '/',
+        credentials     : '',
+        heartbeat       : 60,
+        maxRetry        : 5,
+        autoReconnect   : true,
+        maxDelay        : 3600000
     },
 
     /**
@@ -74,7 +76,7 @@ const rabbitPlugin = {
     _connect : () => {
         var options = rabbitPlugin._settings,
             reconnect = () => {
-                if (retry >= options.maxRetry) {
+                if (retry >= options.maxRetry && !options.autoReconnect) {
                     var err = new Error('[AMQP] cannot reconnect to AMQP server');
 
                     err.error = {
@@ -86,8 +88,18 @@ const rabbitPlugin = {
                 }
 
                 amqpConnect = undefined;
+
+                let refDelay    = 60000,    // 60 000ms
+                    range       = Math.floor(retry/5),
+                    calcDelay   = Math.min(range*(Math.pow(range, 1.5))*refDelay, options.maxDelay);
+
+                if (range == 0) {
+                    calcDelay = 1000;
+                }
+
                 retry++;
-                _.delay(() => { return rabbitPlugin._connect(); }, 1000);
+                _.delay(() => {return rabbitPlugin._connect(); }, calcDelay);
+            };
             };
 
         rabbitURL = 'amqp://' + (_.isEmpty(options.credentials) ? '' : options.credentials + '@') + options.hostname + ':' + options.port + options.vhost;
