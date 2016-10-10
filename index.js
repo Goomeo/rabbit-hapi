@@ -100,7 +100,6 @@ const rabbitPlugin = {
                 retry++;
                 _.delay(() => {return rabbitPlugin._connect(); }, calcDelay);
             };
-            };
 
         rabbitURL = 'amqp://' + (_.isEmpty(options.credentials) ? '' : options.credentials + '@') + options.hostname + ':' + options.port + options.vhost;
 
