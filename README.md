@@ -35,7 +35,7 @@ Global settings use for broker connection.
 | hostname      | RabbitMQ broker hostname                          | localhost |
 | port          | Port for AMQP                                     | 5672      |
 | credentials   | Credential to connect to RabbitMQ broker          | -         |
-| heartbeat     | Period of the connection heartbeat (seconds)      | 60        |
+| heartbeat     | Period of the connection heartbeat (seconds)      | 30        |
 | maxRetry      | Max retry allowed on connection or channel error  | 5         |
 
 ### RabbitMQ settings
