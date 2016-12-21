@@ -40,7 +40,7 @@ const rabbitPlugin = {
         port            : '5672',
         vhost           : '/',
         credentials     : '',
-        heartbeat       : 60,
+        heartbeat       : 30,
         maxRetry        : 5,
         autoReconnect   : true,
         maxDelay        : 3600000
@@ -99,6 +99,10 @@ const rabbitPlugin = {
 
         if (!_.isUndefined(amqpConnect)) {
             return amqpConnect;
+        }
+
+        if (!_.isUndefined(options.heartbeat)) {
+            rabbitURL += '?heartbeat=' + options.heartbeat;
         }
 
         amqpConnect = amqp.connect(rabbitURL)
