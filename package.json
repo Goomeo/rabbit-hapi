@@ -4,7 +4,7 @@
   "description": "HAPI plugin to wrap basic RabbitMQ operations",
   "main": "index.js",
   "dependencies": {
-    "amqplib": "0.4.1",
+    "amqplib": "0.5.1",
     "hoek": "^4.0.0",
     "node-uuid": "^1.4.7",
     "underscore": "^1.8.3",
