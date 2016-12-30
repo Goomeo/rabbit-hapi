@@ -175,23 +175,17 @@ const rabbitPlugin = {
      */
     _consume : (params) => {
         return params.channel.consume(params.queue, (message) => {
-            when.promise((resolve, reject) => {
-                var res;
-
-                try {
-                    res = params.receiveFunc(message);
-
+            when.resolve(params.receiveFunc(message))
+                .then(() => {
                     if (!params.options.noAck) {
                         params.channel.ack(message);
                     }
-                } catch (err) {
+                })
+                .catch(() => {
                     if (!params.options.noAck) {
                         params.channel.nack(message);
                     }
-                    reject(err);
-                }
-                resolve(res);
-            });
+                });
         }, params.options);
     },
 
