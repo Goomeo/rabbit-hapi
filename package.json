@@ -5,10 +5,10 @@
   "main": "index.js",
   "dependencies": {
     "amqplib": "0.5.1",
-    "hoek": "^4.0.0",
-    "node-uuid": "^1.4.7",
-    "underscore": "^1.8.3",
-    "when": "^3.7.7"
+    "hoek": "4.1.0",
+    "node-uuid": "1.4.7",
+    "underscore": "1.8.3",
+    "when": "3.7.7"
   },
   "devDependencies": {},
   "scripts": {
