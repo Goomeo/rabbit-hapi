@@ -1,6 +1,6 @@
 {
   "name": "rabbit-hapi",
-  "version": "0.1.9",
+  "version": "0.1.10",
   "description": "HAPI plugin to wrap basic RabbitMQ operations",
   "main": "index.js",
   "dependencies": {
