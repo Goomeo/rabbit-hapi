@@ -43,7 +43,10 @@ const rabbitPlugin = {
         heartbeat       : 30,
         maxRetry        : 5,
         autoReconnect   : true,
-        maxDelay        : 3600000
+        maxDelay        : 3600000,
+        socketOptions   : {
+            timeout     : 3000
+        }
     },
 
     /**
@@ -105,7 +108,7 @@ const rabbitPlugin = {
             rabbitURL += '?heartbeat=' + options.heartbeat;
         }
 
-        amqpConnect = amqp.connect(rabbitURL)
+        amqpConnect = amqp.connect(rabbitURL, options.socketOptions)
             .then((connection) => {
                 connection.on('error', (err) => {
                     if (err.message !== 'Connection closing') {
