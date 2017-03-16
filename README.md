@@ -240,6 +240,7 @@ Send a message acting like a client RPC.
 | message.options   | Object        | Message options (same as those provided by amqp lib)                      |
 | queue             | String        | Queue to send request on                                                  |
 | options           | Object        | Exchange options                                                          |
+| RPCTimeout        | Number        | Timeout if no answer is received from the RPC server (default to 30 sec)  |
 | receiveFunc       | Function      | Function to call on server response                                       |
 
 #### Usage
