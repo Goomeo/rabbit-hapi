@@ -73,30 +73,30 @@ const internals = {
     _connect() {
         const options = internals._settings;
         const reconnect = () => {
-                if (retry >= options.maxRetry && !options.autoReconnect) {
-                    let err = new Error('[AMQP] cannot reconnect to AMQP server');
+            if (retry >= options.maxRetry && !options.autoReconnect) {
+                let err = new Error('[AMQP] cannot reconnect to AMQP server');
 
-                    err.error = {
-                        code    : 504,
-                        devMsge : '[AMQP] cannot reconnect to AMQP server',
-                        usrMsge : '[AMQP] cannot reconnect to AMQP server'
-                    };
-                    throw err;
-                }
+                err.error = {
+                    code    : 504,
+                    devMsge : '[AMQP] cannot reconnect to AMQP server',
+                    usrMsge : '[AMQP] cannot reconnect to AMQP server'
+                };
+                throw err;
+            }
 
-                amqpConnect = undefined;
+            amqpConnect = undefined;
 
-                let refDelay    = 60000,    // 60 000ms
-                    range       = Math.floor(retry/5),
-                    calcDelay   = Math.min(range*(Math.pow(range, 1.5))*refDelay, options.maxDelay);
+            let refDelay    = 60000,    // 60 000ms
+                range       = Math.floor(retry/5),
+                calcDelay   = Math.min(range*(Math.pow(range, 1.5))*refDelay, options.maxDelay);
 
-                if (range == 0) {
-                    calcDelay = 1000;
-                }
+            if (range == 0) {
+                calcDelay = 1000;
+            }
 
-                retry++;
-                _.delay(() => internals._connect(), calcDelay);
-            };
+            retry++;
+            _.delay(() => internals._connect(), calcDelay);
+        };
 
         rabbitURL = 'amqp://' + (_.isEmpty(options.credentials) ? '' : options.credentials + '@') + options.hostname + ':' + options.port + options.vhost;
 
@@ -556,7 +556,7 @@ const rabbitPlugin = {
                             })
                             .catch((err) => {
                                 res = hoek.applyToDefaults(defaultMessage, {
-                                    content     : err,
+                                    content     : err.toString,
                                     options     : {
                                         type    : 'error'
                                     }
