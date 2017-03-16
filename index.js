@@ -1,40 +1,39 @@
 'use strict';
 
-var _             = require('underscore'),
-    amqp          = require('amqplib'),
-    EventEmitter  = require('events').EventEmitter,
-    hoek          = require('hoek'),
-    uuid          = require('node-uuid'),
-    when          = require('when');
+const _                 = require('underscore');
+const amqp              = require('amqplib');
+const EventEmitter      = require('events').EventEmitter;
+const hoek              = require('hoek');
+const Promise           = require('bluebird');
+const uuid              = require('node-uuid');
 
-var amqpConnect     = undefined,
-    rabbitURL       = '',
-    retry           = 0;
+let amqpConnect     = undefined;
+let rabbitURL       = '';
+let retry           = 0;
 
-const events        = new EventEmitter(),
-    defaultRabbit   = {
-        exchange            : '',
-        queue               : '',
-        type                : 'direct',
-        options             : {
-            durable         : true,
-            noAck           : false,
-            RPCExpire       : 60000
-        },
-        receiveFunc         : () => {},
-        waitingFunc         : () => {}
+const events        = new EventEmitter();
+const defaultRabbit = {
+    exchange            : '',
+    queue               : '',
+    type                : 'direct',
+    options             : {
+        durable         : true,
+        noAck           : false
     },
-    defaultMessage  = {
-        content         : '',
-        options         : {
-            contentType : 'application/json',
-            persistent  : true
-        }
-    };
+    RPCTimeout          : 30000,        // 30 sec
+    receiveFunc         : () => {},
+    waitingFunc         : () => {}
+};
+const defaultMessage    = {
+    content         : '',
+    options         : {
+        contentType : 'application/json',
+        persistent  : true
+    }
+};
 
-const rabbitPlugin = {
+const internals = {
     _server     : {},
-
     _settings   : {
         hostname        : 'localhost',
         port            : '5672',
@@ -49,6 +48,7 @@ const rabbitPlugin = {
         }
     },
 
+
     /**
      * Close the amqp connection on error
      *
@@ -56,7 +56,7 @@ const rabbitPlugin = {
      * @returns     {boolean}               True if amqp connection was close due to error
      * @private
      */
-    _closeOnErr : (err) => {
+    _closeOnErr(err) {
         if (!_.isUndefined(amqpConnect)) {
             amqpConnect.close();
         }
@@ -70,11 +70,11 @@ const rabbitPlugin = {
      * @returns     {object}    AMQP server connection
      * @private
      */
-    _connect : () => {
-        var options = rabbitPlugin._settings,
-            reconnect = () => {
+    _connect() {
+        const options = internals._settings;
+        const reconnect = () => {
                 if (retry >= options.maxRetry && !options.autoReconnect) {
-                    var err = new Error('[AMQP] cannot reconnect to AMQP server');
+                    let err = new Error('[AMQP] cannot reconnect to AMQP server');
 
                     err.error = {
                         code    : 504,
@@ -95,7 +95,7 @@ const rabbitPlugin = {
                 }
 
                 retry++;
-                _.delay(() => {return rabbitPlugin._connect(); }, calcDelay);
+                _.delay(() => internals._connect(), calcDelay);
             };
 
         rabbitURL = 'amqp://' + (_.isEmpty(options.credentials) ? '' : options.credentials + '@') + options.hostname + ':' + options.port + options.vhost;
@@ -112,16 +112,16 @@ const rabbitPlugin = {
             .then((connection) => {
                 connection.on('error', (err) => {
                     if (err.message !== 'Connection closing') {
-                        rabbitPlugin._server.log([ 'error', 'AMQP', 'connection' ], err.message);
+                        internals._server.log([ 'error', 'AMQP', 'connection' ], err.message);
                     }
                 });
 
                 connection.on('close', () => {
-                    rabbitPlugin._server.log([ 'info', 'AMQP', 'connection' ],  'trying to reconnect');
+                    internals._server.log([ 'info', 'AMQP', 'connection' ],  'trying to reconnect');
                     return reconnect();
                 });
 
-                rabbitPlugin._server.log([ 'info', 'AMQP', 'connection' ], 'connected');
+                internals._server.log([ 'info', 'AMQP', 'connection' ], 'connected');
 
                 if (retry != 0) {
                     events.emit('reconnect');
@@ -131,7 +131,7 @@ const rabbitPlugin = {
                 return connection;
             })
             .catch((err) => {
-                rabbitPlugin._server.log([ 'error', 'AMQP', 'connection' ], err.message);
+                internals._server.log([ 'error', 'AMQP', 'connection' ], err.message);
                 return reconnect();
             });
 
@@ -144,8 +144,8 @@ const rabbitPlugin = {
      * @returns     {object}        Channel
      * @private
      */
-    _channel : () => {
-        return rabbitPlugin._connect()
+    _channel() {
+        return internals._connect()
             .then((connection) => {
                 if (_.isUndefined(connection)) {
                     throw new Error('[AMQP] connection lost');
@@ -154,15 +154,16 @@ const rabbitPlugin = {
                 return connection.createChannel();
             }).then((channel) => {
                 channel.on('error', (err) => {
-                    rabbitPlugin._server.log([ 'error', 'AMQP', 'channel' ], err.message);
+                    internals._server.log([ 'error', 'AMQP', 'channel' ], err.message);
                 });
 
                 channel.on('close', () => {
-                    rabbitPlugin._server.log([ 'info', 'AMQP', 'channel' ], 'channel closed');
+                    internals._server.log([ 'info', 'AMQP', 'channel' ], 'channel closed');
                 });
 
                 return channel;
-            }).catch(rabbitPlugin._closeOnErr);
+            })
+            .catch(internals._closeOnErr);
     },
 
     /**
@@ -176,9 +177,9 @@ const rabbitPlugin = {
      * @returns {{ticket, queue, consumerTag, noLocal, noAck, exclusive, nowait, arguments}}
      * @private
      */
-    _consume : (params) => {
+    _consume(params) {
         return params.channel.consume(params.queue, (message) => {
-            when.resolve(params.receiveFunc(message))
+            return Promise.resolve(params.receiveFunc(message))
                 .then(() => {
                     if (!params.options.noAck) {
                         params.channel.ack(message);
@@ -200,12 +201,13 @@ const rabbitPlugin = {
      * @param   {object}    settings        Settings for binding
      * @private
      */
-    _bind : (channel, queue, settings) => {
-        return channel.bindQueue(queue, settings.exchange, settings.routingKey).then(() => {
-            return queue;
-        });
+    _bind(channel, queue, settings) {
+        return channel.bindQueue(queue, settings.exchange, settings.routingKey)
+            .then(() => queue);
     },
+};
 
+const rabbitPlugin = {
     /**
      * Publish a message through a fanout exchange
      *
@@ -219,22 +221,24 @@ const rabbitPlugin = {
      * @param       {string}        [params.queue]              Queue to send in if no routing key is specified (default to queue '')
      * @returns     {*}
      */
-    publish : (params) => {
+    publish(params) {
         if (typeof params.message === 'string') {
-            params.message = { content : params.message };
+            params.message = {
+                content : params.message
+            };
         }
 
-        return rabbitPlugin._channel()
+        return internals._channel()
             .then((channel) => {
-                var settings    = hoek.applyToDefaults(defaultRabbit, params),
-                    message     = hoek.applyToDefaults(defaultMessage, params.message);
+                let settings    = hoek.applyToDefaults(defaultRabbit, params);
+                let message     = hoek.applyToDefaults(defaultMessage, params.message);
 
-                return channel.assertExchange(settings.exchange, 'fanout', settings.options).then(() => {
-                    channel.publish(settings.exchange, settings.routingKey || settings.queue, new Buffer(message.content), message.options);
-                    return channel.close();
-                });
-            })
-            .catch(() => {});
+                return channel.assertExchange(settings.exchange, 'fanout', settings.options)
+                    .then(() => {
+                        channel.publish(settings.exchange, settings.routingKey || settings.queue, new Buffer(message.content), message.options);
+                        return channel.close();
+                    });
+            });
     },
 
     /**
@@ -248,28 +252,30 @@ const rabbitPlugin = {
      * @param       {function}      params.receiveFunc      Function to call on message consumption (take message object in parameter)
      * @returns {*}
      */
-    subscribe : (params) => {
-        var settings    = hoek.applyToDefaults(defaultRabbit, params),
-            subFunc     = (channel) => {
-                return channel.assertExchange(settings.exchange, 'fanout', settings.options).then(() => {
-                    return channel.assertQueue(settings.queue, settings.options);
-                }).then((queueOk) => {
-                    return rabbitPlugin._bind(channel, queueOk.queue, settings);
-                }).then((queue) => {
-                    return rabbitPlugin._consume({
-                        channel     : channel,
-                        queue       : queue,
+    subscribe(params) {
+        let settings    = hoek.applyToDefaults(defaultRabbit, params);
+        let subFunc     = (channel) => {
+            return channel.assertExchange(settings.exchange, 'fanout', settings.options)
+                .then(() => channel.assertQueue(settings.queue, settings.options))
+                .then(queueOk => internals._bind(channel, queueOk.queue, settings))
+                .then(queue => (
+                    internals._consume({
+                        channel,
+                        queue,
                         options     : settings.options,
                         receiveFunc : settings.receiveFunc
-                    });
-                }).then(settings.waitingFunc);
-            };
+                    })
+                ))
+                .then(settings.waitingFunc);
+        };
 
         events.on('reconnect', () => {
-            return rabbitPlugin._channel().then(subFunc).catch(() => {});
+            return internals._channel()
+                .then(subFunc);
         });
 
-        return rabbitPlugin._channel().then(subFunc).catch(() => {});
+        return internals._channel()
+            .then(subFunc);
     },
 
     /**
@@ -286,15 +292,17 @@ const rabbitPlugin = {
      * @param       {boolean}       [params.generatedQueue]     True to use AMQP auto-generated queue
      * @returns     {*}
      */
-    send : (params) => {
+    send(params) {
         if (typeof params.message === 'string') {
-            params.message = { content : params.message };
+            params.message = {
+                content : params.message
+            };
         }
 
-        return rabbitPlugin._channel()
+        return internals._channel()
             .then((channel) => {
-                var settings    = hoek.applyToDefaults(defaultRabbit, params),
-                    message     = hoek.applyToDefaults(defaultMessage, params.message);
+                let settings    = hoek.applyToDefaults(defaultRabbit, params);
+                let message     = hoek.applyToDefaults(defaultMessage, params.message);
 
                 if (!_.isEmpty(settings.exchange)) {
                     // messages using routing key and exchange
@@ -315,7 +323,7 @@ const rabbitPlugin = {
                             }
 
                             // (re)do binding in case of queue creation
-                            return rabbitPlugin._bind(channel, queueOk.queue, settings);
+                            return internals._bind(channel, queueOk.queue, settings);
                         })
                         .then(() => {
                             channel.publish(settings.exchange, settings.routingKey || settings.queue, new Buffer(message.content), message.options);
@@ -324,12 +332,12 @@ const rabbitPlugin = {
                 }
 
                 // message direct to a queue
-                return channel.assertQueue(settings.queue, settings.options).then(() => {
-                    channel.publish('', settings.queue, new Buffer(message.content), message.options);
-                    return channel.close();
-                });
-            })
-            .catch(() => {});
+                return channel.assertQueue(settings.queue, settings.options)
+                    .then(() => {
+                        channel.publish('', settings.queue, new Buffer(message.content), message.options);
+                        return channel.close();
+                    });
+            });
     },
 
     /**
@@ -345,44 +353,42 @@ const rabbitPlugin = {
      * @param       {function}      params.receiveFunc      Function to call on message consumption (take message object in parameter)
      * @returns     {*}
      */
-    consume : (params) => {
-        var settings    = hoek.applyToDefaults(defaultRabbit, params),
-            func        = () => {
-                return rabbitPlugin._channel()
-                    .then((channel) => {
-                        var prefetch = (queue) => {
-                                if (!_.isUndefined(settings.prefetch) && !_.isNaN(settings.prefetch)) {
-                                    channel.prefetch(settings.prefetch);
-                                }
-                                return queue;
-                            },
-                            consume = (queue) => {
-                                return rabbitPlugin._consume({
-                                    channel     : channel,
-                                    queue       : queue,
-                                    options     : settings.options,
-                                    receiveFunc : settings.receiveFunc
-                                });
-                            };
+    consume(params) {
+        let settings    = hoek.applyToDefaults(defaultRabbit, params);
+        let func        = () => {
+            return internals._channel()
+                .then((channel) => {
+                    let chain = Promise.resolve();
 
-                        if (!_.isEmpty(settings.exchange)) {
-                            return channel.assertExchange(settings.exchange, settings.type, settings.options).then(() => {
-                                return channel.assertQueue(settings.queue, settings.options);
-                            }).then((queueOk) => {
-                                return rabbitPlugin._bind(channel, queueOk.queue, settings);
-                            }).then(prefetch)
-                                .then(consume)
-                                .then(settings.waitingFunc);
-                        }
+                    if (!_.isEmpty(settings.exchange)) {
+                        chain = chain
+                            .then(() => channel.assertExchange(settings.exchange, settings.type, settings.options))
+                            .then(() => channel.assertQueue(settings.queue, settings.options))
+                            .then(queueOk => internals._bind(channel, queueOk.queue, settings));
+                    } else {
+                        chain = chain
+                            .then(() => channel.assertQueue(settings.queue, settings.options))
+                            .then(queueOk => queueOk.queue);
+                    }
 
-                        return channel.assertQueue(settings.queue, settings.options)
-                            .then((queueOk) => { return queueOk.queue; })
-                            .then(prefetch)
-                            .then(consume)
-                            .then(settings.waitingFunc);
-                    })
-                    .catch(() => {});
-            };
+                    return chain
+                        .then((queue) => {
+                            if (!_.isUndefined(settings.prefetch) && !_.isNaN(settings.prefetch)) {
+                                channel.prefetch(settings.prefetch);
+                            }
+                            return queue;
+                        })
+                        .then(queue => (
+                            internals._consume({
+                                channel     : channel,
+                                queue       : queue,
+                                options     : settings.options,
+                                receiveFunc : settings.receiveFunc
+                            })
+                        ))
+                        .then(settings.waitingFunc);
+                });
+        };
 
         events.on('reconnect', func);
         return func();
@@ -399,27 +405,22 @@ const rabbitPlugin = {
      * param        {string|string[]}   params.routingKeys      Routing keys to bind to. USe array to specified multiple keys.
      * @returns     {*}
      */
-    bindExchange : (params) => {
-        var settings    = hoek.applyToDefaults(defaultRabbit, params);
+    bindExchange(params) {
+        let settings    = hoek.applyToDefaults(defaultRabbit, params);
 
-        return rabbitPlugin._channel()
+        return internals._channel()
             .then((channel) => {
                 return channel.assertExchange(settings.exchange, settings.type, settings.options)
+                    .then(() => channel.assertQueue(settings.queue, settings.options))
                     .then(() => {
-                        return channel.assertQueue(settings.queue, settings.options);
-                    }).then(() => {
                         if (typeof settings.routingKeys == 'string') {
                             settings.routingKeys = [ settings.routingKeys ];
                         }
 
-                        return when.map(settings.routingKeys, (routingKey) => {
-                            return channel.bindQueue(settings.queue, settings.exchange, routingKey);
-                        });
-                    }).then(() => {
-                        return channel.close();
-                    });
-            })
-            .catch(() => {});
+                        return Promise.map(settings.routingKeys, routingKey => channel.bindQueue(settings.queue, settings.exchange, routingKey));
+                    })
+                    .then(() => channel.close());
+            });
     },
 
     /**
@@ -434,65 +435,77 @@ const rabbitPlugin = {
      * @param       {function}          params.receiveFunc          Function to call server answer
      * @returns     {*}
      */
-    sendRPC : (params) => {
-        var answerQueue,
-            func = () => {
-                return rabbitPlugin._channel()
-                    .then((channel) => {
-                        var settings        = hoek.applyToDefaults(defaultRabbit, params),
-                            message         = hoek.applyToDefaults(defaultMessage, params.message),
-                            answer          = when.defer(),
-                            correlationId   = uuid.v1(),
-                            getReplyFunc    = (msg) => {
-                                if (msg.properties.correlationId === correlationId) {
-                                    answer.resolve(msg);
-                                }
-                            },
-                            q;
+    sendRPC(params) {
+        let func = () => {
+            return internals._channel()
+                .then((channel) => {
+                    let settings    = hoek.applyToDefaults(defaultRabbit, params);
+                    let message     = hoek.applyToDefaults(defaultMessage, params.message);
 
-                        // create anonymous exclusive queue for the reply
-                        if (_.isUndefined(answerQueue)) {
-                            q = channel.assertQueue('', { expires : settings.options.RPCExpire }).then((queueOk) => {
-                                answerQueue = queueOk.queue;
-                                return queueOk.queue;
-                            });
-                        } else {
-                            q = when(answerQueue);
-                        }
+                    let rpcPromise = new Promise((resolve) => {
+                        const correlationId = uuid.v1();
 
-                        return q.then((queue) => {
-                            rabbitPlugin._consume({
-                                channel     : channel,
-                                queue       : queue,
-                                options     : settings.options,
-                                receiveFunc : getReplyFunc
-                            });
-                            return queue;
-                        }).then((queue) => {
-                            // sending the message with replyTo set with the anonymous queue
-                            var msgOpt = _.extend({}, message.options, {
-                                correlationId   : correlationId,
-                                replyTo         : queue
-                            });
+                        let replyFunc = (msg) => {
+                            if (msg.properties.correlationId === correlationId) {
+                                resolve(msg);
+                            }
+                        };
 
-                            channel.assertQueue(settings.queue, settings.options)
-                                .then((queueOk) => {
-                                    channel.publish('', queueOk.queue, new Buffer(message.content), msgOpt);
+                        // declare anonyme queue for RPC answer
+                        channel.assertQueue('', {
+                            exclusive   : true,
+                            autoDelete  : true
+                        })
+                            .then(queueOk => queueOk.queue)
+                            .then((answerQueue) => {
+                                internals._consume({
+                                    channel,
+                                    queue       : answerQueue,
+                                    options     : {
+                                        exclusive   : true
+                                    },
+                                    receiveFunc : replyFunc
                                 });
-                            return answer.promise;
-                        }).then((msg) => {
-                            settings.receiveFunc(msg);
-                            return msg;
-                        }).then((msg) => {
+
+                                return answerQueue;
+                            })
+                            .then((queue) => {
+                                // sending the message with replyTo set with the anonymous queue
+                                let msgOpt = _.extend({}, message.options, {
+                                    correlationId   : correlationId,
+                                    replyTo         : queue
+                                });
+
+                                return channel.assertQueue(settings.queue, settings.options)
+                                    .then(queueOk => channel.publish('', queueOk.queue, new Buffer(message.content), msgOpt))
+                                    .then(() => queue);
+                            });
+                    });
+
+                    if (!_.isUndefined(settings.RPCTimeout)) {
+                        rpcPromise = rpcPromise.timeout(settings.RPCTimeout)
+                            .catch((err) => {
+                                channel.close();
+                                return Promise.reject(err);
+                            });
+                    }
+
+                    return rpcPromise
+                        .then((msg) => {
                             channel.close();
                             return msg;
+                        })
+                        .then((msg) => {
+                            settings.receiveFunc(msg);
+                            return msg;
                         });
-                    })
-                    .catch(() => {});
-            };
+                });
+        };
 
         if (typeof params.message === 'string') {
-            params.message = { content : params.message };
+            params.message = {
+                content : params.message
+            };
         }
 
         events.on('reconnect', func);
@@ -510,72 +523,75 @@ const rabbitPlugin = {
      * @param       {function}          params.receiveFunc      Function to call when receiving a message
      * @return      {*}
      */
-    answerToRPC : (params) => {
-        var func = () => {
-            return rabbitPlugin._channel()
+    answerToRPC(params) {
+        let func = () => {
+            return internals._channel()
                 .then((channel) => {
-                    var settings    = hoek.applyToDefaults(defaultRabbit, params),
-                        reply       = (msg, res) => {
-                            // reply to client
-                            // opening another connection to avoid breaking in middle of the answer
-                            return amqp.connect(rabbitURL).then((connection) => {
-                                return when(connection.createChannel().then((channel) => {
-                                    channel.sendToQueue(msg.properties.replyTo, new Buffer(res.content),
-                                        _.extend({}, res.options, { correlationId : msg.properties.correlationId }));
-                                    return channel.close();
-                                })).ensure(() => {
-                                    return connection.close();
-                                });
+                    let settings    = hoek.applyToDefaults(defaultRabbit, params);
+                    let reply       = (msg, res) => {
+                        // reply to client
+                        // opening another connection to avoid breaking in middle of the answer
+                        return amqp.connect(rabbitURL)
+                            .then((connection) => {
+                                return connection.createChannel()
+                                    .then((channel) => {
+                                        channel.sendToQueue(msg.properties.replyTo, new Buffer(res.content),
+                                            _.extend({}, res.options, { correlationId : msg.properties.correlationId }));
+                                        return channel.close();
+                                    })
+                                    .then(() => connection.close());
                             });
-                        },
-                        response    = (msg) => {
-                            var res;
+                    };
+                    let response    = (msg) => {
+                        let res;
 
-                            return when.resolve(settings.receiveFunc(msg)).then((answer) => {
+                        return Promise.resolve(settings.receiveFunc(msg))
+                            .then((answer) => {
                                 if (typeof answer === 'string') {
                                     answer = { content : answer };
                                 }
 
                                 res = hoek.applyToDefaults(defaultMessage, answer);
                                 return res;
-                            }).catch((err) => {
+                            })
+                            .catch((err) => {
                                 res = hoek.applyToDefaults(defaultMessage, {
                                     content     : err,
                                     options     : {
                                         type    : 'error'
                                     }
                                 });
-                            }).finally(() => {
-                                return reply(msg, res);
-                            });
-                        };
+                            })
+                            .finally(() => reply(msg, res));
+                    };
 
-                    return channel.assertQueue(settings.queue, settings.options).then((queueOk) => {
-                        return queueOk.queue;
-                    }).then((queue) => {
-                        if (!_.isUndefined(settings.prefetch) && !_.isNaN(settings.prefetch)) {
-                            channel.prefetch(settings.prefetch);
-                        }
-                        return queue;
-                    }).then((queue) => {
-                        return rabbitPlugin._consume({
-                            channel     : channel,
-                            queue       : queue,
-                            options     : settings.options,
-                            receiveFunc : response
-                        });
-                    }).then(settings.waitingFunc);
-                })
-                .catch(() => {});
+                    return channel.assertQueue(settings.queue, settings.options)
+                        .then(queueOk => queueOk.queue)
+                        .then((queue) => {
+                            if (!_.isUndefined(settings.prefetch) && !_.isNaN(settings.prefetch)) {
+                                channel.prefetch(settings.prefetch);
+                            }
+                            return queue;
+                        })
+                        .then((queue) => {
+                            return internals._consume({
+                                channel,
+                                queue,
+                                options     : settings.options,
+                                receiveFunc : response
+                            });
+                        })
+                        .then(settings.waitingFunc);
+                });
         };
 
         events.on('reconnect', func);
         return func();
     },
 
-    register : (server, options, next) => {
-        rabbitPlugin._settings = _.extend({}, rabbitPlugin._settings, options);
-        rabbitPlugin._server = server;
+    register(server, options, next) {
+        internals._settings = _.extend({}, internals._settings, options);
+        internals._server = server;
 
         server.expose('publish', rabbitPlugin.publish);
         server.expose('subscribe', rabbitPlugin.subscribe);
@@ -594,4 +610,3 @@ rabbitPlugin.register.attributes = {
 };
 
 module.exports.register = rabbitPlugin.register;
-
