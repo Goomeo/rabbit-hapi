@@ -11,6 +11,15 @@ let amqpConnect     = undefined;
 let rabbitURL       = '';
 let retry           = 0;
 
+// fields used by amqp lib or by rabbit in options
+const consumeOpt    = ['consumerTag', 'noLocal', 'noAck', 'exclusive', 'priority', 'arguments'];
+const exchangeOpt   = ['durable', 'internal', 'autoDelete', 'alternateExchange', 'arguments'];
+const messageOpt    = ['expiration', 'userId', 'CC', 'priority', 'persistent', 'deliveryMode', 'mandatory',
+    'BCC', 'immediate', 'contentType', 'contentEncoding', 'headers', 'correlationId',  'replyTo',
+    'messageId', 'timestamp', 'type', 'appId'];
+const queueOpt      = ['exclusive', 'durable', 'autoDelete', 'arguments', 'messageTtl', 'expires',
+    'deadLetterExchange', 'maxLength', 'maxPriority'];
+
 const events        = new EventEmitter();
 const defaultRabbit = {
     exchange            : '',
@@ -187,7 +196,7 @@ const internals = {
                         params.channel.nack(message);
                     }
                 })
-        ), params.options);
+        ), _.pick(params.options, consumeOpt));
     },
 
     /**
@@ -230,10 +239,10 @@ const rabbitPlugin = {
                 const settings    = hoek.applyToDefaults(defaultRabbit, params);
                 const message     = hoek.applyToDefaults(defaultMessage, params.message);
 
-                return channel.assertExchange(settings.exchange, 'fanout', settings.options)
+                return channel.assertExchange(settings.exchange, 'fanout', _.pick(settings.options, exchangeOpt))
                     .then(() => {
                         channel.publish(settings.exchange, settings.routingKey || settings.queue,
-                            new Buffer(message.content), message.options);
+                            new Buffer(message.content), _.pick(message.options, messageOpt));
                         return channel.close();
                     });
             });
@@ -253,8 +262,8 @@ const rabbitPlugin = {
     subscribe(params) {
         const settings    = hoek.applyToDefaults(defaultRabbit, params);
         const subFunc     = channel => (
-            channel.assertExchange(settings.exchange, 'fanout', settings.options)
-                .then(() => channel.assertQueue(settings.queue, settings.options))
+            channel.assertExchange(settings.exchange, 'fanout', _.pick(settings.options, exchangeOpt))
+                .then(() => channel.assertQueue(settings.queue, _.pick(settings.options, queueOpt)))
                 .then(queueOk => internals._bind(channel, queueOk.queue, settings))
                 .then(queue => (
                     internals._consume({
@@ -304,7 +313,7 @@ const rabbitPlugin = {
 
                 if (!_.isEmpty(settings.exchange)) {
                     // messages using routing key and exchange
-                    return channel.assertExchange(settings.exchange, settings.type, settings.options)
+                    return channel.assertExchange(settings.exchange, settings.type, _.pick(settings.options, exchangeOpt))
                         .then(() => {
                             // if queue is not passed and not anonymous, just use the routing feature from the exchange
                             if (!settings.generatedQueue && _.isEmpty(settings.queue) && !_.isEmpty(settings.routingKey)) {
@@ -313,7 +322,7 @@ const rabbitPlugin = {
 
                             // else, assert the queue exists or create it
                             settings.queue = settings.generatedQueue ? '' : settings.queue;
-                            return channel.assertQueue(settings.queue, settings.options);
+                            return channel.assertQueue(settings.queue, _.pick(settings.options, queueOpt));
                         })
                         .then((queueOk) => {
                             if (!queueOk) {
@@ -325,15 +334,15 @@ const rabbitPlugin = {
                         })
                         .then(() => {
                             channel.publish(settings.exchange, settings.routingKey || settings.queue,
-                                new Buffer(message.content), message.options);
+                                new Buffer(message.content), _.pick(message.options, messageOpt));
                             return channel.close();
                         });
                 }
 
                 // message direct to a queue
-                return channel.assertQueue(settings.queue, settings.options)
+                return channel.assertQueue(settings.queue, _.pick(settings.options, queueOpt))
                     .then(() => {
-                        channel.publish('', settings.queue, new Buffer(message.content), message.options);
+                        channel.publish('', settings.queue, new Buffer(message.content), _.pick(message.options, messageOpt));
                         return channel.close();
                     });
             });
@@ -361,12 +370,13 @@ const rabbitPlugin = {
 
                     if (!_.isEmpty(settings.exchange)) {
                         chain = chain
-                            .then(() => channel.assertExchange(settings.exchange, settings.type, settings.options))
-                            .then(() => channel.assertQueue(settings.queue, settings.options))
+                            .then(() => channel.assertExchange(settings.exchange, settings.type,
+                                _.pick(settings.options, exchangeOpt)))
+                            .then(() => channel.assertQueue(settings.queue, _.pick(settings.options, queueOpt)))
                             .then(queueOk => internals._bind(channel, queueOk.queue, settings));
                     } else {
                         chain = chain
-                            .then(() => channel.assertQueue(settings.queue, settings.options))
+                            .then(() => channel.assertQueue(settings.queue, _.pick(settings.options, queueOpt)))
                             .then(queueOk => queueOk.queue);
                     }
 
@@ -409,9 +419,14 @@ const rabbitPlugin = {
 
         return internals._channel()
             .then(channel => (
-                channel.assertExchange(settings.exchange, settings.type, settings.options)
-                    .then(() => channel.assertQueue(settings.queue, settings.options))
+                channel.assertExchange(settings.exchange, settings.type, _.pick(settings.options, exchangeOpt))
+                    .then(() => channel.assertQueue(settings.queue, _.pick(settings.options, queueOpt)))
                     .then(() => {
+                        if (_.isNull(settings.routingKeys) || _.isUndefined(settings.routingKeys)
+                            || _.isEmpty(settings.routingKeys)) {
+                            return channel.bindQueue(settings.queue, settings.exchange);
+                        }
+
                         if (typeof settings.routingKeys === 'string') {
                             settings.routingKeys = [settings.routingKeys];
                         }
@@ -476,8 +491,8 @@ const rabbitPlugin = {
                                     replyTo         : queue,
                                 });
 
-                                return channel.assertQueue(settings.queue, settings.options)
-                                    .then(queueOk => channel.publish('', queueOk.queue, new Buffer(message.content), msgOpt))
+                                return channel.assertQueue(settings.queue, _.pick(settings.options, queueOpt))
+                                    .then(queueOk => channel.publish('', queueOk.queue, new Buffer(message.content), _.pick(msgOpt, messageOpt)))
                                     .then(() => queue);
                             });
                     });
@@ -565,7 +580,7 @@ const rabbitPlugin = {
                             .finally(() => reply(msg, res));
                     };
 
-                    return channel.assertQueue(settings.queue, settings.options)
+                    return channel.assertQueue(settings.queue, _.pick(settings.options, queueOpt))
                         .then(queueOk => queueOk.queue)
                         .then((queue) => {
                             if (!_.isUndefined(settings.prefetch) && !_.isNaN(settings.prefetch)) {
