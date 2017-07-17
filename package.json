@@ -6,8 +6,8 @@
   "dependencies": {
     "amqplib": "0.5.1",
     "bluebird": "3.5.0",
-    "hoek": "4.1.0",
-    "node-uuid": "1.4.7",
+    "hoek": "4.1.1",
+    "node-uuid": "1.4.8",
     "underscore": "1.8.3"
   },
   "devDependencies": {},
