@@ -119,14 +119,14 @@ const internals = {
         rabbitURL = `amqp://${(_.isEmpty(options.credentials) ? '' : `${options.credentials}@`)}${options.hostname}:${options.port}${options.vhost}`;
 
         if (!_.isUndefined(amqpConnect)) {
-            return amqpConnect;
+            return Promise.resolve(amqpConnect);
         }
 
         if (!_.isUndefined(options.heartbeat)) {
             rabbitURL += `?heartbeat=${options.heartbeat}`;
         }
 
-        amqpConnect = amqp.connect(rabbitURL, options.socketOptions)
+        return amqp.connect(rabbitURL, options.socketOptions)
             .then((connection) => {
                 connection.on('error', (err) => {
                     if (err.message !== 'Connection closing') {
@@ -135,7 +135,10 @@ const internals = {
                 });
 
                 connection.on('close', () => {
-                    internals._server.log(['info', 'AMQP', 'connection'], 'trying to reconnect');
+                    if (internals._settings.autoReconnect === true) {
+                        internals._server.log(['info', 'AMQP', 'connection'], 'trying to reconnect');
+                    }
+
                     return reconnect();
                 });
 
@@ -146,14 +149,25 @@ const internals = {
                 }
 
                 retry = 0;
+                amqpConnect = connection;
+
                 return connection;
             })
             .catch((err) => {
                 internals._server.log(['error', 'AMQP', 'connection'], err.message);
+
+                if (!_.isUndefined(amqpConnect)) {
+                    amqpConnect.close()
+                        .then(() => {
+                            amqpConnect = undefined;
+                        })
+                        .catch(() => {
+                            amqpConnect = undefined;
+                        });
+                }
+
                 return reconnect();
             });
-
-        return amqpConnect;
     },
 
     /**
@@ -261,6 +275,26 @@ const internals = {
 };
 
 const rabbitPlugin = {
+    /**
+     * Close connection manually. If autoReconnect is on, disable it
+     */
+    close() {
+        retry = internals._settings.maxRetry + 1;
+        internals._settings.autoReconnect = false;
+
+        if (_.isUndefined(amqpConnect)) {
+            return;
+        }
+
+        return amqpConnect.close()
+            .then(() => {
+                amqpConnect = undefined;
+            })
+            .catch(() => {
+                amqpConnect = undefined;
+            });
+    },
+
     /**
      * Publish a message through a fanout exchange
      *
@@ -655,6 +689,7 @@ const rabbitPlugin = {
         internals._settings = _.extend({}, internals._settings, options);
         internals._server = server;
 
+        server.expose('close', rabbitPlugin.close);
         server.expose('publish', rabbitPlugin.publish);
         server.expose('subscribe', rabbitPlugin.subscribe);
         server.expose('send', rabbitPlugin.send);
