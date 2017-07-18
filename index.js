@@ -28,6 +28,14 @@ const defaultRabbit = {
     options             : {
         durable         : true,
         noAck           : false,
+        allUpTo         : false,
+        requeue         : true,
+        debug           : {
+            isActivated : false,
+            expires     : 86400000,     // 24 hours
+            durable     : true,
+            persistent  : true,
+        },
     },
     RPCTimeout          : 30000,        // 30 sec
     receiveFunc         : () => {},
@@ -188,12 +196,29 @@ const internals = {
             Promise.resolve(params.receiveFunc(message))
                 .then(() => {
                     if (!params.options.noAck) {
-                        params.channel.ack(message);
+                        params.channel.ack(message, params.options.allUpTo);
                     }
                 })
-                .catch(() => {
+                .catch((error) => {
                     if (!params.options.noAck) {
-                        params.channel.nack(message);
+                        params.channel.nack(message, params.options.allUpTo, params.options.requeue);
+                    }
+                    if (!_.isUndefined(params.options.debug) && params.options.debug.isActivated === true) {
+                        const debugMsg = {
+                            error,
+                            message,
+                        };
+                        const messageSettings = hoek.applyToDefaults(defaultMessage, params.options.debug);
+
+                        params.options.debug.queue = params.options.debug.queue || params.queue.replace(/(:.[^:]*)$/, ':debug$1');
+
+                        return internals._sendErrorToDebugQueue({
+                            channel     : params.channel,
+                            debug       : params.options.debug,
+                            msgSettings : messageSettings,
+                            message     : debugMsg,
+                        })
+                            .then(() => Promise.reject(error));
                     }
                 })
         ), _.pick(params.options, consumeOpt));
@@ -210,6 +235,28 @@ const internals = {
     _bind(channel, queue, settings) {
         return channel.bindQueue(queue, settings.exchange, settings.routingKey)
             .then(() => queue);
+    },
+
+    /**
+     * Send an error on a specific debug queue if debug is activated
+     *
+     * @param   {Object}    params              Function params
+     * @param   {Object}    params.debug        Debug settings
+     * @param   {Object}    params.message      Message with error to send back
+     * @param   {Object}    params.msgSettings  Message settings for publish
+     * @param   {Object}    params.channel      Channel in use
+     * @private
+     */
+    _sendErrorToDebugQueue(params) {
+        return params.channel.assertQueue(params.debug.queue, _.pick(params.debug, queueOpt))
+            .then((queueOk) => {
+                if (!queueOk) {
+                    return;
+                }
+
+                return params.channel.publish('', params.debug.queue,
+                    new Buffer(JSON.stringify(params.message)), _.pick(params.msgSettings, messageOpt));
+            });
     },
 };
 
