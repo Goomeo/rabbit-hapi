@@ -42,13 +42,21 @@ Global settings use for broker connection.
 
 Default settings applied on queues/exchanges.
 
-| Params            | Description                                                   | Default   |
-| ---               | ---                                                           | ---       |
-| type              | Exchange type                                                 | direct    |
-| options           | Queue options                                                 | -         |
-| options.durable   | Durable options for queue                                     | true      |
-| options.noAck     | Disable acknowledgement on messages if true                   | false     |
-| options.RPCExpire | Expiration time (milliseconds) for answer queue in RPC mode   | 60000     |
+| Params                        | Description                                                   | Default               |
+| ---                           | ---                                                           | ---                   |
+| type                          | Exchange type                                                 | direct                |
+| options                       | Queue options                                                 | -                     |
+| options.durable               | Durable options for queue                                     | true                  |
+| options.noAck                 | Disable acknowledgement on messages if true                   | false                 |
+| options.RPCExpire             | Expiration time (milliseconds) for answer queue in RPC mode   | 60000                 |
+| options.allUpTo               | allUpTo on ack/noAck                                          | false                 |
+| options.requeue               | Requeue on noAck                                              | true                  |
+| options.debug                 | Debug configuration                                           |                       |
+| options.debug.isActivated     | Activate debug                                                | false                 |
+| options.debug.expires         | Queue expires after x ms                                      | 86400000  // 24 hours |
+| options.debug.durable         | Queue is durable                                              | true                  |
+| options.debug.persistent      | Message requeue on error are persistent                       | true                  |
+
 
 ### Messages settings
 
@@ -60,6 +68,11 @@ Default messages settings.
 | options               | Message options                                   | -                 |
 | options.contentType   | Content MIME type                                 | application/json  |
 | options.persistent    | If true, message will survive a broker restart    | true              |
+
+### Debug mode
+
+When debug is activated, if consumer fails during message treatment, message will be also queue in a specific queue.
+Queue can be named in `options.debug.queue`. If not, name will be the original queue's name plus `debug`.
 
 ## Server Methods
 
@@ -291,3 +304,7 @@ rabbitHapi.answerToRPC({
     }
 });
 ```
+
+### close
+
+Close manually RabbitMQ connection.
