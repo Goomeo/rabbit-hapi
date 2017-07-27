@@ -18,7 +18,7 @@ const messageOpt    = ['expiration', 'userId', 'CC', 'priority', 'persistent', '
     'BCC', 'immediate', 'contentType', 'contentEncoding', 'headers', 'correlationId',  'replyTo',
     'messageId', 'timestamp', 'type', 'appId'];
 const queueOpt      = ['exclusive', 'durable', 'autoDelete', 'arguments', 'messageTtl', 'expires',
-    'deadLetterExchange', 'maxLength', 'maxPriority'];
+    'deadLetterExchange', 'deadLetterRoutingKey', 'maxLength', 'maxPriority'];
 
 const events        = new EventEmitter();
 const defaultRabbit = {
